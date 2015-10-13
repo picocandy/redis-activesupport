@@ -1,3 +1,4 @@
+
 # encoding: UTF-8
 require 'redis-store'
 
@@ -79,11 +80,7 @@ module ActiveSupport
           matcher = key_matcher(matcher, options)
           begin
             with do |store|
-              supports_scan_each = store.respond_to?(:supports_redis_version?) &&
-                store.supports_redis_version?("2.8.0") &&
-                store.respond_to?(:scan_each)
-
-              if supports_scan_each
+              if server_version_gte("2.8.0") && store.respond_to?(:scan_each)
                 keys = store.scan_each(match: matcher).to_a
               else
                 keys = store.keys(matcher)
@@ -272,7 +269,27 @@ module ActiveSupport
             pattern
           end
         end
+
+      private
+        def server_version
+          with do |c|
+            # Clusters return an array instead of a hash, we use the version reported by the first node
+            if c.respond_to?(:nodes)
+              c.info("server")[0]["redis_version"]
+            else
+              c.info("server")["redis_version"]
+            end
+          end
+        end
+
+        # Tests if the server version is greater or equal to the specified version
+        #
+        # version should be a string in X.Y.Z format e.g "2.8.0"
+        def server_version_gte(version)
+          (server_version.split(".").map(&:to_i) <=> version.split(".").map(&:to_i)) >= 0
+        end
     end
   end
 end
+
 
